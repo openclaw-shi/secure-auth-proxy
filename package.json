@@ -13,10 +13,12 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1",
+    "js-yaml": "^4.1.1",
     "undici": "^7.24.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.5.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"

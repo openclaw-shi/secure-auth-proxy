@@ -1,0 +1,29 @@
+proxy:
+  socket: "/run/auth-proxy/proxy.sock"
+  socket_owner: "proxy-admin"
+  socket_group: "agent-access"
+  socket_mode: "0660"
+
+services:
+  openai:
+    target: "https://api.openai.com"
+    auth_header: "Authorization"
+    auth_prefix: "Bearer "
+    key_id: "openai_main"
+
+  cerebras:
+    target: "https://api.cerebras.ai"
+    auth_header: "Authorization"
+    auth_prefix: "Bearer "
+    key_id: "cerebras_main"
+
+  tavily:
+    target: "https://api.tavily.com"
+    auth_header: "Authorization"
+    auth_prefix: "Bearer "
+    key_id: "tavily"
+
+  google:
+    target: "https://generativelanguage.googleapis.com"
+    auth_header: "x-goog-api-key"
+    key_id: "google_main"
