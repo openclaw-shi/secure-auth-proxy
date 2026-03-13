@@ -5,7 +5,7 @@ import * as path from "path";
 
 // ---- 設定 ----
 
-const PORT = 8080;
+const PORT = 8081;
 
 // バックエンドサービスの定義
 // OpenAI互換なら target に向けるだけ
