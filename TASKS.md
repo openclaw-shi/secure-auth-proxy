@@ -16,6 +16,4 @@
 ## 未着手
 
 - [ ] `preflight-check.sh` 作成（環境確認スクリプト）
-- [ ] UDS 経由での実際の API 疎通確認（`agent` ユーザーから）
 - [ ] `setup.sh` に `preflight-check.sh` 実行ステップを追加
-- [ ] SDK 連携確認（Anthropic SDK / OpenAI SDK から UDS 経由で接続）
