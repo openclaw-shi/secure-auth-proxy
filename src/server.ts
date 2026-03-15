@@ -26,6 +26,30 @@ const CONFIG_FILE =
 
 const config = yaml.load(fs.readFileSync(CONFIG_FILE, "utf-8")) as ProxyConfig;
 
+// ---- 起動時バリデーション ----
+
+if (!config.services || typeof config.services !== "object") {
+  console.error("Error: config.yaml に services が定義されていません");
+  process.exit(1);
+}
+
+for (const [name, svc] of Object.entries(config.services)) {
+  const missing: string[] = [];
+  if (!svc.target) missing.push("target");
+  if (!svc.auth_header) missing.push("auth_header");
+  if (!svc.key_id) missing.push("key_id");
+  if (missing.length > 0) {
+    console.error(`Error: services.${name} に必須項目がありません: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+  try {
+    new URL(svc.target);
+  } catch {
+    console.error(`Error: services.${name}.target が有効なURLではありません: "${svc.target}"`);
+    process.exit(1);
+  }
+}
+
 const SERVICES: Record<string, ServiceConfig> = config.services;
 
 const TCP_FALLBACK = process.argv.includes("--tcp-fallback");
@@ -48,6 +72,14 @@ const apiKeys: Record<string, string> = JSON.parse(
 );
 console.log(`keys.json を読み込みました: ${KEYS_FILE}`);
 
+// 各サービスが参照する key_id がキーファイルに存在するか確認
+for (const [name, svc] of Object.entries(SERVICES)) {
+  if (!apiKeys[svc.key_id]) {
+    console.error(`Error: services.${name}.key_id "${svc.key_id}" が keys.json に見つかりません`);
+    process.exit(1);
+  }
+}
+
 function getApiKey(keyId: string): string {
   const key = apiKeys[keyId];
   if (!key) {
@@ -57,6 +89,8 @@ function getApiKey(keyId: string): string {
 }
 
 // ---- プロキシロジック ----
+
+const UPSTREAM_TIMEOUT_MS = 30_000;
 
 // 転送してはいけないヘッダ
 const HOP_BY_HOP_HEADERS = new Set([
@@ -139,6 +173,9 @@ app.use(async (req: Request, res: Response) => {
     `[${new Date().toISOString()}] → ${method} /${serviceName}${upstreamPath}`
   );
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
   try {
     const upstream = await fetch(upstreamUrl, {
       method,
@@ -148,7 +185,9 @@ app.use(async (req: Request, res: Response) => {
           ? req.body
           : undefined,
       redirect: "manual",
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     res.status(upstream.status);
     upstream.headers.forEach((value, key) => {
@@ -164,11 +203,13 @@ app.use(async (req: Request, res: Response) => {
       `[${new Date().toISOString()}] ← ${upstream.status} ${method} /${serviceName}${upstreamPath}`
     );
   } catch (err) {
-    console.error(`[${new Date().toISOString()}] ERROR ${method} /${serviceName}${upstreamPath}:`, (err as Error).message);
+    clearTimeout(timeoutId);
+    const isTimeout = (err as Error).name === "AbortError";
+    console.error(`[${new Date().toISOString()}] ${isTimeout ? "TIMEOUT" : "ERROR"} ${method} /${serviceName}${upstreamPath}:`, (err as Error).message);
     res
-      .status(502)
+      .status(isTimeout ? 504 : 502)
       .type("json")
-      .send(JSON.stringify({ error: "Bad Gateway" }) + "\n");
+      .send(JSON.stringify({ error: isTimeout ? "Gateway Timeout" : "Bad Gateway" }) + "\n");
   }
 });
 
